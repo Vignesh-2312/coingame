@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Coin Collecting Game</title>
+  <style>
+    body {
+      margin: 0;
+      background-color: #E6F2FA;
+      overflow: hidden;
+      font-family: 'Open Sans', sans-serif;
+    }
+
+    #gameCanvas {
+      position: absolute;
+      width: 1500px;
+      height: 960px;
+      background: #E6F2FA;
+      touch-action: none;
+    }
+
+    #score {
+      position: absolute;
+      top: 20px;
+      right: 40px;
+      font-size: 18px;
+      font-weight: normal;
+      color: #333;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas" width="1500" height="960"></canvas>
+  <div id="score">Coins collected: 0</div>
+
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const bagImg = new Image();
+    const coinImg = new Image();
+    bagImg.src = './bag.png';
+    coinImg.src = './coin.png';
+
+    let mouseX = canvas.width / 2;
+    const bagY = canvas.height - 160;
+    const bagWidth = 100;
+    const bagHeight = 130;
+    let coins = [];
+    let coinCollected = 0;
+    let speed = 1.2;
+    let dropRate = 140;
+    let frames = 0;
+    let imagesLoaded = 0;
+    let gameStarted = false;
+    const dropPositions = [500, 750, 1000];
+
+    bagImg.onload = checkImagesLoaded;
+    coinImg.onload = checkImagesLoaded;
+
+    function checkImagesLoaded() {
+      imagesLoaded++;
+      if (imagesLoaded === 2) {
+        drawStartScreen();
+      }
+    }
+
+    function drawStartScreen() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = '#E6F2FA';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      drawBag();
+      canvas.addEventListener('mousedown', tryStartGame);
+      canvas.addEventListener('touchstart', tryStartGame);
+    }
+
+    function tryStartGame(e) {
+      const rect = canvas.getBoundingClientRect();
+      const x = (e.clientX || e.touches[0].clientX) - rect.left;
+      const y = (e.clientY || e.touches[0].clientY) - rect.top;
+
+      if (x >= mouseX - bagWidth / 2 && x <= mouseX + bagWidth / 2 && y >= bagY && y <= bagY + bagHeight) {
+        gameStarted = true;
+        canvas.removeEventListener('mousedown', tryStartGame);
+        canvas.removeEventListener('touchstart', tryStartGame);
+        
+        // 👇 Send message to Storyline to hide instruction object
+        if (typeof parent !== "undefined" && parent) {
+          parent.postMessage("hideInstructions", "*");
+        }
+
+        startGame();
+      }
+    }
+
+    function startGame() {
+      document.addEventListener('mousemove', (e) => {
+        const rect = canvas.getBoundingClientRect();
+        mouseX = e.clientX - rect.left;
+        mouseX = Math.max(bagWidth / 2, Math.min(mouseX, canvas.width - bagWidth / 2));
+      });
+
+      document.addEventListener('touchmove', (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const touchX = e.touches[0].clientX - rect.left;
+        mouseX = Math.max(bagWidth / 2, Math.min(touchX, canvas.width - bagWidth / 2));
+      });
+
+      function drawBag() {
+        if (bagImg.complete && bagImg.naturalHeight !== 0) {
+          ctx.drawImage(bagImg, mouseX - bagWidth / 2, bagY, bagWidth, bagHeight);
+        } else {
+          ctx.fillStyle = 'green';
+          ctx.fillRect(mouseX - bagWidth / 2, bagY, bagWidth, bagHeight);
+        }
+      }
+
+      function dropCoin() {
+        const posIndex = Math.floor(Math.random() * dropPositions.length);
+        coins.push({ x: dropPositions[posIndex], y: -40 });
+      }
+
+      function drawCoins() {
+        for (let i = 0; i < coins.length; i++) {
+          const coin = coins[i];
+          coin.y += speed;
+          ctx.drawImage(coinImg, coin.x, coin.y, 40, 40);
+
+          const coinBottom = coin.y + 40;
+          const bagTop = bagY;
+          const bagLeft = mouseX - bagWidth / 2;
+          const bagRight = mouseX + bagWidth / 2;
+
+          const inBagX = coin.x + 20 >= bagLeft && coin.x + 20 <= bagRight;
+          const inBagY = coinBottom >= bagTop && coinBottom <= bagTop + bagHeight;
+
+          if (inBagX && inBagY) {
+            coins.splice(i, 1);
+            coinCollected++;
+            document.getElementById('score').innerText = `Coins collected: ${coinCollected}`;
+            speed += 0.03;
+            dropRate = Math.max(60, dropRate - 1);
+            i--;
+          } else if (coin.y > canvas.height) {
+            if (typeof parent !== "undefined" && parent) {
+              parent.postMessage("goToNextSlide", "*");
+            }
+            return;
+          }
+        }
+      }
+
+      function updateGame() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        drawBag();
+        drawCoins();
+
+        frames++;
+        if (frames % dropRate === 0) dropCoin();
+
+        requestAnimationFrame(updateGame);
+      }
+
+      updateGame();
+    }
+
+    function drawBag() {
+      if (bagImg.complete && bagImg.naturalHeight !== 0) {
+        ctx.drawImage(bagImg, mouseX - bagWidth / 2, bagY, bagWidth, bagHeight);
+      } else {
+        ctx.fillStyle = 'green';
+        ctx.fillRect(mouseX - bagWidth / 2, bagY, bagWidth, bagHeight);
+      }
+    }
+  </script>
+</body>
+</html>
